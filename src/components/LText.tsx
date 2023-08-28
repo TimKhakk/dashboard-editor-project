@@ -1,35 +1,34 @@
 import Konva from "konva";
 import React, { ComponentProps } from "react";
-import { Rect, Transformer } from "react-konva";
+import { Text, Transformer } from "react-konva";
 
-const LRect = ({
+const LText = ({
   isSelected,
   onSelect,
   onChange,
   ...restProps
-}: ComponentProps<typeof Rect> & {
+}: ComponentProps<typeof Text> & {
   isSelected: boolean;
   onSelect: VoidFunction;
-  onChange: (starProps: ComponentProps<typeof Rect>) => void;
+  onChange: (starProps: ComponentProps<typeof Text>) => void;
 }) => {
-  const rectRef = React.useRef<Konva.Rect>(null);
+  const textRef = React.useRef<Konva.Text>(null);
   const trRef = React.useRef<Konva.Transformer>(null);
 
   React.useEffect(() => {
     if (isSelected) {
       // we need to attach transformer manually
-      trRef.current!.nodes([rectRef.current!]);
+      trRef.current!.nodes([textRef.current!]);
       trRef.current!.getLayer()?.batchDraw();
     }
   }, [isSelected]);
 
   return (
     <>
-      <Rect
-        ref={rectRef}
-        stroke="black"
-        width={50}
-        height={50}
+      <Text
+        ref={textRef}
+        fontSize={18}
+        draggable
         onClick={onSelect}
         onTap={onSelect}
         {...restProps}
@@ -41,30 +40,19 @@ const LRect = ({
           });
         }}
         onTransformEnd={() => {
-          // transformer is changing scale of the node
-          // and NOT its width or height
-          // but in the store we have only width and height
-          // to match the data better we will reset scale on transform end
-          const node = rectRef.current!;
-          const scaleX = node.scaleX();
-          const scaleY = node.scaleY();
+          const node = textRef.current!;
 
-          // we will reset it back
-          node.scaleX(1);
-          node.scaleY(1);
           onChange({
             ...restProps,
             x: node.x(),
             y: node.y(),
             rotation: node.rotation(),
-            // set minimal value
-            width: Math.max(5, node.width() * scaleX),
-            height: Math.max(node.height() * scaleY),
           });
         }}
       />
       {isSelected && (
         <Transformer
+          resizeEnabled={false}
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {
             // limit resize
@@ -79,4 +67,4 @@ const LRect = ({
   );
 };
 
-export default LRect;
+export default LText;

@@ -7,6 +7,9 @@ import { io } from 'socket.io-client';
 import { useBoolean, useEventListener } from 'usehooks-ts';
 import cn from './lib/utils/cn';
 import LRect from './components/LRect';
+import LText from './components/LText';
+import LLine from './components/LLine';
+import { capitalize } from 'lodash-es';
 const socket = io('http://localhost:3001');
 
 // TODO
@@ -61,7 +64,10 @@ type Point = {
   y: number;
 }
 
-type ActionMode = 'selection' | 'pencil' | 'rect' | 'text';
+type ActionMode = 'selection' | 'pencil' | 'text';
+
+const ACTIONS_MODES = ['selection', 'pencil', 'text'] as const satisfies readonly ActionMode[]
+
 const userId = crypto.randomUUID();
 
 const App = () => {
@@ -106,10 +112,11 @@ const App = () => {
     document.documentElement.style.cursor = '';
     disableStageDraggable();
   });
-
   useEventListener('keydown', (e) => {
     if (e.code !== 'Backspace') return;
     setShapes((prev) => prev.filter((star) => !selectedShapeIds.includes(star.id)));
+    setTexts((prev) => prev.filter((text) => !selectedShapeIds.includes(text.id)));
+    setLines((prev) => prev.filter((line) => !selectedShapeIds.includes(line.id)));
   });
 
   useEffect(() => {
@@ -128,12 +135,33 @@ const App = () => {
   }, [layerRef]);
 
   useEffect(() => {
+    setSelectedShapeIds([]);
     if (mode === 'pencil' || mode === 'text') {
       document.documentElement.style.cursor = 'crosshair'
     } else {
       document.documentElement.style.cursor = ''
     }
   }, [mode]);
+
+  const handleSelectItem = (id: string) => {
+    if (mode !== 'selection') return;
+    setSelectedShapeIds([id]);
+  }
+
+  const handleDeselect = () => {
+    if (mode !== 'selection') return;
+    setSelectedShapeIds([]);
+  };
+
+  const handleMouseOverItem = () => {
+    if (mode !== 'selection') return;
+    document.documentElement.style.cursor = 'move';
+  };
+
+  const handleMouseLeaveItem = () => {
+    if (mode !== 'selection') return;
+    document.documentElement.style.cursor = '';
+  };
 
   return (
     <Stage
@@ -162,12 +190,12 @@ const App = () => {
             }]
             setTexts(newTexts)
           }
-          // create text if value is not empty
           setTextEditor((prev) => ({
             ...prev,
             active: false,
             value: ''
           }))
+          setMode('selection');
         }
       }}
       onMouseDown={(e) => {
@@ -231,9 +259,7 @@ const App = () => {
 
         setLines(newLines);
       }}
-      onMouseUp={() => {
-        stopDrawing();
-      }}
+      onMouseUp={stopDrawing}
     >
       <Layer>
         <Html
@@ -248,27 +274,15 @@ const App = () => {
         >
           <div className="bg-slate-200 text-black p-1 rounded">
             <ul className="flex items-center gap-4">
-              <ActionItem
-                label="Selection"
-                selected={mode === 'selection'}
-                onClick={() => {
-                  setMode('selection')
-                }}
-              />
-              <ActionItem
-                label="Pencil"
-                selected={mode === 'pencil'}
-                onClick={() => {
-                  setMode('pencil')
-                }}
-              />
-              <ActionItem
-                label="Text"
-                selected={mode === 'text'}
-                onClick={() => {
-                  setMode('text')
-                }}
-              />
+              {ACTIONS_MODES.map((action) => (
+                <ActionItem
+                  label={capitalize(action)}
+                  selected={mode === action}
+                  onClick={() => {
+                    setMode(action)
+                  }}
+                />
+              ))}
               <ActionItem
                 label="Create Rect"
                 selected={false}
@@ -296,6 +310,7 @@ const App = () => {
                   socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
                     lines: [],
                     shapes: [],
+                    texts: [],
                     userCursors: [],
                   });
                 }}
@@ -358,24 +373,80 @@ const App = () => {
 
       <Layer ref={layerRef}>
         {texts.map((item) => (
-          <Text
-            fontSize={18}
+          <LText
             key={item.id}
-            text={item.text}
-            x={item.x}
-            y={item.y}
+            {...item}
+            draggable={mode === 'selection'}
+            isSelected={selectedShapeIds.includes(item.id)}
+            onSelect={() => {
+              handleSelectItem(item.id);
+            }}
+            onDragStart={() => {
+              handleSelectItem(item.id);
+            }}
+            onDragEnd={handleDeselect}
+            onMouseOver={handleMouseOverItem}
+            onMouseLeave={handleMouseLeaveItem}
+            onChange={(newAttrs) => {
+              setTexts((prev) => {
+                const newTexts = prev.map((prevItem) =>
+                  prevItem.id === item.id
+                    ? {
+                        ...prevItem,
+                        ...newAttrs,
+                      }
+                    : prevItem,
+                );
+
+                socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
+                  lines,
+                  userCursors: collaborators,
+                  shapes,
+                  texts: newTexts,
+                });
+
+                return newTexts;
+              });
+            }}
+
           />
         ))}
         {lines.map((line, i) => (
-          <Line
+          <LLine
             key={i}
-            points={line.points}
-            stroke="black"
-            strokeWidth={5}
-            tension={0.2}
-            lineCap="round"
-            lineJoin="round"
-            globalCompositeOperation="source-over"
+            draggable={mode === 'selection'}
+            {...line}
+            isSelected={selectedShapeIds.includes(line.id)}
+            onSelect={() => {
+              handleSelectItem(line.id);
+            }}
+            onDragStart={() => {
+              handleSelectItem(line.id);
+            }}
+            onDragEnd={handleDeselect}
+            onMouseOver={handleMouseOverItem}
+            onMouseLeave={handleMouseLeaveItem}
+            onChange={(newAttrs) => {
+              setLines((prev) => {
+                const newLines = prev.map((prevItem) =>
+                  prevItem.id === line.id
+                    ? {
+                        ...prevItem,
+                        ...newAttrs,
+                      }
+                    : prevItem,
+                );
+
+                socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
+                  userCursors: collaborators,
+                  shapes,
+                  texts,
+                  lines: newLines,
+                });
+
+                return newLines;
+              });
+            }}
           />
         ))}
         {collaborators
@@ -401,41 +472,38 @@ const App = () => {
         {shapes.map((shape) => (
           <LRect
             key={shape.id}
-            draggable
-            shadowColor="black"
+            draggable={mode === 'selection'}
             {...shape}
             isSelected={selectedShapeIds.includes(shape.id)}
             onSelect={() => {
-              setSelectedShapeIds([shape.id]);
+              handleSelectItem(shape.id);
             }}
             onDragStart={() => {
-              setSelectedShapeIds([shape.id]);
+              handleSelectItem(shape.id);
             }}
-            onDragEnd={() => {
-              setSelectedShapeIds([]);
-            }}
+            onDragEnd={handleDeselect}
+            onMouseOver={handleMouseOverItem}
+            onMouseLeave={handleMouseLeaveItem}
             onChange={(newAttrs) => {
-              const newStars = shapes.map((star) =>
-                star.id === newAttrs.id
-                  ? {
-                      ...star,
-                      ...newAttrs,
-                    }
-                  : star,
-              );
+              setShapes((prev) => {
+                const newStars = prev.map((star) =>
+                  star.id === newAttrs.id
+                    ? {
+                        ...star,
+                        ...newAttrs,
+                      }
+                    : star,
+                );
 
-              socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
-                lines,
-                userCursors: collaborators,
-                shapes: newStars,
+                socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
+                  lines,
+                  texts,
+                  userCursors: collaborators,
+                  shapes: newStars,
+                });
+
+                return newStars;
               });
-              setShapes(newStars);
-            }}
-            onMouseOver={() => {
-              document.documentElement.style.cursor = 'move';
-            }}
-            onMouseLeave={() => {
-              document.documentElement.style.cursor = '';
             }}
           />
         ))}
