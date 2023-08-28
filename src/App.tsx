@@ -3,7 +3,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Line } from 'react-konva';
 import { Stage, Layer, Text } from 'react-konva';
 import { Html } from 'react-konva-utils';
-import { io } from 'socket.io-client';
 import { useBoolean, useEventListener } from 'usehooks-ts';
 import LRect from './components/LRect';
 import LText from './components/LText';
@@ -12,7 +11,7 @@ import { capitalize } from 'lodash-es';
 import { LISTENERS_MAP } from './lib/consts/socketListeners';
 import { ActionItem } from '@/components/ActionItem';
 import { COLORS } from '@/lib/consts/colors';
-const socket = io('http://localhost:3001');
+import { socket } from '@/lib/socket';
 
 type Entity = {
   id: ReturnType<typeof crypto.randomUUID>;
