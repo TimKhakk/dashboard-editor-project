@@ -5,60 +5,19 @@ import { Stage, Layer, Text } from 'react-konva';
 import { Html } from 'react-konva-utils';
 import { io } from 'socket.io-client';
 import { useBoolean, useEventListener } from 'usehooks-ts';
-import cn from './lib/utils/cn';
 import LRect from './components/LRect';
 import LText from './components/LText';
 import LLine from './components/LLine';
 import { capitalize } from 'lodash-es';
+import { LISTENERS_MAP } from './lib/consts/socketListeners';
+import { ActionItem } from '@/components/ActionItem';
+import { COLORS } from '@/lib/consts/colors';
 const socket = io('http://localhost:3001');
-
-// TODO
-// create util for updating document.documentElement.style.cursor; // https://konvajs.org/docs/styling/Mouse_Cursor.html
-// console.log('layerRef:', stageRef.current?.toCanvas().toDataURL('base64', 1));
-
-function ActionItem({
-  label,
-  selected,
-  className,
-  ...buttonProps
-}: {
-  selected: boolean;
-  label: React.ReactNode;
-} & React.DetailedHTMLProps<React.ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>) {
-  return (
-    <li>
-      <button
-        {...buttonProps}
-        className={cn(
-          'py-0.5 px-1.5 rounded bg-transparent border-none hover:bg-blue-200 transition-colors hover:text-black/90 cursor-pointer',
-          {
-            'bg-blue-300': selected,
-            'bg-gray-400 text-black/50': buttonProps.disabled,
-          },
-          className,
-        )}
-      >
-        {label}
-      </button>
-    </li>
-  );
-}
-
-const LISTENERS_MAP = {
-  ClientReady: 'client-ready',
-  GetCanvasState: 'get-canvas-state',
-  SendingAppStateToServer: 'sending-app-state-to-server',
-  SendingAppStateToClient: 'sending-app-state-to-client',
-} as const;
-
-const COLORS = {
-  LightGreen: 'rgba(52, 239, 121, 0.87)',
-  Tomato: 'tomato',
-} as const;
 
 type Entity = {
   id: ReturnType<typeof crypto.randomUUID>;
 }
+
 type Point = {
   x: number;
   y: number;
@@ -74,7 +33,7 @@ const App = () => {
   const [shapes, setShapes] = React.useState<Konva.Node['attrs'][]>([]);
   const [lines, setLines] = React.useState<({ points: number[] } & Entity)[]>([]);
   const textEditorRef = useRef<HTMLTextAreaElement>(null)
-  const [selectedShapeIds, setSelectedShapeIds] = React.useState<string[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = React.useState<string[]>([]);
   const [texts, setTexts] = useState<({ text: string } & Point & Entity)[]>([]);
   const [textEditor, setTextEditor] = useState<{
     active: boolean;
@@ -114,9 +73,9 @@ const App = () => {
   });
   useEventListener('keydown', (e) => {
     if (e.code !== 'Backspace') return;
-    setShapes((prev) => prev.filter((star) => !selectedShapeIds.includes(star.id)));
-    setTexts((prev) => prev.filter((text) => !selectedShapeIds.includes(text.id)));
-    setLines((prev) => prev.filter((line) => !selectedShapeIds.includes(line.id)));
+    setShapes((prev) => prev.filter((star) => !selectedItemIds.includes(star.id)));
+    setTexts((prev) => prev.filter((text) => !selectedItemIds.includes(text.id)));
+    setLines((prev) => prev.filter((line) => !selectedItemIds.includes(line.id)));
   });
 
   useEffect(() => {
@@ -135,7 +94,7 @@ const App = () => {
   }, [layerRef]);
 
   useEffect(() => {
-    setSelectedShapeIds([]);
+    setSelectedItemIds([]);
     if (mode === 'pencil' || mode === 'text') {
       document.documentElement.style.cursor = 'crosshair'
     } else {
@@ -145,12 +104,12 @@ const App = () => {
 
   const handleSelectItem = (id: string) => {
     if (mode !== 'selection') return;
-    setSelectedShapeIds([id]);
+    setSelectedItemIds([id]);
   }
 
   const handleDeselect = () => {
     if (mode !== 'selection') return;
-    setSelectedShapeIds([]);
+    setSelectedItemIds([]);
   };
 
   const handleMouseOverItem = () => {
@@ -169,7 +128,7 @@ const App = () => {
       ref={stageRef}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          setSelectedShapeIds([]);
+          setSelectedItemIds([]);
         }
 
         if (mode === 'text' && !textEditor.active) {
@@ -305,7 +264,7 @@ const App = () => {
                   setMode('selection');
                   setLines([])
                   setShapes([]);
-                  setSelectedShapeIds([]);
+                  setSelectedItemIds([]);
                   setTexts([]);
                   socket.emit(LISTENERS_MAP.SendingAppStateToServer, {
                     lines: [],
@@ -377,7 +336,7 @@ const App = () => {
             key={item.id}
             {...item}
             draggable={mode === 'selection'}
-            isSelected={selectedShapeIds.includes(item.id)}
+            isSelected={selectedItemIds.includes(item.id)}
             onSelect={() => {
               handleSelectItem(item.id);
             }}
@@ -416,7 +375,7 @@ const App = () => {
             key={i}
             draggable={mode === 'selection'}
             {...line}
-            isSelected={selectedShapeIds.includes(line.id)}
+            isSelected={selectedItemIds.includes(line.id)}
             onSelect={() => {
               handleSelectItem(line.id);
             }}
@@ -474,7 +433,7 @@ const App = () => {
             key={shape.id}
             draggable={mode === 'selection'}
             {...shape}
-            isSelected={selectedShapeIds.includes(shape.id)}
+            isSelected={selectedItemIds.includes(shape.id)}
             onSelect={() => {
               handleSelectItem(shape.id);
             }}
