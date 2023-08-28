@@ -16,6 +16,7 @@ const socket = io('http://localhost:3001');
 
 type Entity = {
   id: ReturnType<typeof crypto.randomUUID>;
+  rotation?: number;
 }
 
 type Point = {
@@ -85,7 +86,12 @@ const App = () => {
       socket.emit(LISTENERS_MAP.SendingAppStateToServer, layerRef.current?.getChildren());
     });
 
-    socket.on(LISTENERS_MAP.SendingAppStateToClient, (state: any) => {
+    socket.on(LISTENERS_MAP.SendingAppStateToClient, (state: Partial<{
+      lines: typeof lines,
+      shapes: typeof shapes,
+      texts: typeof texts,
+      userCursors: typeof collaborators,
+    }>) => {
       setLines(state?.lines ?? []);
       setTexts(state?.texts ?? []);
       setShapes(state?.shapes ?? []);
@@ -322,10 +328,16 @@ const App = () => {
                 transform: '',
               },
             }}>
-            <textarea autoFocus className="text-lg focus-within:outline-none border resize text-black bg-transparent" ref={textEditorRef} value={textEditor.value} onChange={(e) => setTextEditor((prev) => ({
-              ...prev,
-              value: e.target.value,
-            }))} type="text" />
+            <textarea
+              autoFocus
+              className="text-lg focus-within:outline-none border resize text-black bg-transparent"
+              ref={textEditorRef}
+              value={textEditor.value}
+              onChange={(e) => setTextEditor((prev) => ({
+                ...prev,
+                value: e.target.value,
+              }))}
+            />
           </Html>
         )}
       </Layer>
@@ -352,7 +364,9 @@ const App = () => {
                   prevItem.id === item.id
                     ? {
                         ...prevItem,
-                        ...newAttrs,
+                        x: newAttrs.x ?? 0,
+                        y: newAttrs.y ?? 0,
+                        rotation: newAttrs.rotation,
                       }
                     : prevItem,
                 );
@@ -391,7 +405,9 @@ const App = () => {
                   prevItem.id === line.id
                     ? {
                         ...prevItem,
-                        ...newAttrs,
+                        x: newAttrs.x ?? 0,
+                        y: newAttrs.y ?? 0,
+                        rotation: newAttrs.rotation,
                       }
                     : prevItem,
                 );
